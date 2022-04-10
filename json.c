@@ -96,11 +96,13 @@ void json_object_insert(json_object* self, const char* key, void* val)
     btree_insert(&self->value, tmp, cmp);
 }
 
-void* json_object_find(json_object* self, char* key)
+json_unknown* json_object_find(json_object* self, char* key)
 {
-    t_btree* res = btree_find(self->value, key, &ft_strcmp);
+    t_keyval tmp = {key, NULL};
+    t_btree* res = btree_find(self->value, &tmp, &cmp);
     if (res) {
-        return res->value;
+        assert(res->value);
+        return ((t_keyval*)res->value)->val;
     }
     return NULL;
 }
@@ -125,8 +127,15 @@ typedef enum s_error {
     SYNTAX_ERROR,
     UNKNOWN_TOKEN,
     BAD_ALLOC,
-    END
+    TOTAL_ERRORS
 } t_error;
+
+static const char* errors[TOTAL_ERRORS] = {
+    [SUCCESS] = "",
+    [SYNTAX_ERROR] = "Syntax error",
+    [UNKNOWN_TOKEN] = "Unknown token",
+    [BAD_ALLOC] = "Bad alloc"
+};
 
 static const int MAX_VAL_SIZE = 256;
 typedef struct s_token {
@@ -137,6 +146,7 @@ typedef struct s_token {
 static struct {
     const char* start_pos;
     const char* current_pos;
+    const char* prev_position;
 } ctx;
 
 static int is_delims(char c) {
@@ -154,7 +164,7 @@ static int get_token(t_token* token)
     while (*ctx.current_pos && is_delims(*ctx.current_pos)) {
         ++ctx.current_pos;
     }
-
+    ctx.prev_position = ctx.current_pos;
     ft_memset(token->value, 0, MAX_VAL_SIZE);
     switch (*ctx.current_pos)
     {
@@ -197,11 +207,14 @@ static int get_token(t_token* token)
     return 1;
 }
 
-static int json_parse_private(void** obj);
+static int json_parse_private(json_unknown** obj);
 
-static int parse_object(void** obj)
+static int parse_object(json_unknown** obj)
 {
     json_object* n_obj = new_json_object();
+    if (n_obj == NULL) {
+        return BAD_ALLOC;
+    }
     t_token token;
     t_error err = SUCCESS;
     while (token.type != OBJ_CLOSE) {
@@ -235,46 +248,45 @@ static int parse_object(void** obj)
         delete_json_object(n_obj);
         return err;
     }
-    *obj = n_obj;
+    *(json_object**)obj = n_obj;
     return SUCCESS;
 }
 
-static void* parse_array()
+static int parse_array()
 {
 
 }
 
-static int parse_string(void** obj, t_token* token)
+static int parse_string(json_unknown** obj, t_token* token)
 {
     json_string* n_str = new_json_string(token->value);
     if (n_str == NULL) {
         return BAD_ALLOC;
     }
-    *obj = n_str;
+    *(json_string**)obj = n_str;
     return SUCCESS;
 }
 
-static int json_parse_private(void** obj)
+static int json_parse_private(json_unknown** obj)
 {
     t_token token;
-    json_unknown* unk_obj = NULL;
     while (get_token(&token)) {
         switch (token.type)
         {
         case OBJ_OPEN:
-            return parse_object();
+            return parse_object(obj);
         case ARR_OPEN:
             return parse_array();
         case STR:
-            return parse_string(&token);
+            return parse_string(obj, &token);
         default:
-            break;
+            return UNKNOWN_TOKEN;
         }
     }
-    return NULL;
+    return SUCCESS;
 }
 
-int json_parse(void** obj, const char* text)
+int json_parse(json_unknown** obj, const char* text)
 {
     ctx.start_pos = ctx.current_pos = text;
     return json_parse_private(obj);

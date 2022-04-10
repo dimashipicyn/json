@@ -101,8 +101,15 @@ void test_json()
 
 
 int main(int ac, char** av) {
-    char* text = "{\"hello world\": {\"petuh\":\"cmo\"}, test\":\"keklol\"}";
-    json_unknown* js = json_parse(text);
+    char* text = "{\"hello world\": {\"petuh\":\"cmo\"}, \"test\":\"keklol\"}";
+    json_unknown* js;
+    int err = json_parse(&js, text);
+    if (err != 0) {
+        printf("error\n");
+    }
+    json_unknown* u = json_object_find(js, "test");
+    if (u)
+        printf("value type: %d, test: %s\n", u->type, u->value);
     print_json(js);
     //test_json();
     //foo();

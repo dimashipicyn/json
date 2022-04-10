@@ -44,6 +44,8 @@ void            delete_json_string(json_string* obj);
 
 void            delete_json(void* obj);
 
-int             json_parse(void** obj, const char* text);
+json_unknown* json_object_find(json_object* self, char* key);
+
+int             json_parse(json_unknown** obj, const char* text);
 
 #endif
